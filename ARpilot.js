@@ -1,15 +1,3 @@
-// ==UserScript==
-// @name        ARpilot
-// @version     1.1
-// @description Supply Clicker, with Love
-// @author      ARpilot
-// @info        0 to use
-// @match       https://*.tankionline.com/*
-// @icon        https://tanki-cheats.xyz/favicon.ico
-// @run-at      document-start
-// @grant       none
-// ==/UserScript==
-
 (function () {
     'use strict';
 
