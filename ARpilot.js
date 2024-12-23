@@ -78,20 +78,23 @@
 
             const startAutoclicking = () => {
                 const delay = Number(numberInput.value);
-                console.log(
-                    `Starting autoclicking for ${supply.key} with delay ${delay}`
-                );
-                autoclickingInterval = setInterval(() => {
-                    pressKey(supply.digit);
-                }, delay);
+                let lastTimestamp = performance.now();
+                const clickLoop = (timestamp) => {
+                    if (supply.isActive && timestamp - lastTimestamp >= delay) {
+                        pressKey(supply.digit);
+                        lastTimestamp = timestamp;
+                    }
+                    if (supply.isActive) requestAnimationFrame(clickLoop);
+                };                
+                autoclickingInterval = requestAnimationFrame(clickLoop);
             };
-
+            
             const stopAutoclicking = () => {
                 if (autoclickingInterval) {
-                    clearInterval(autoclickingInterval);
+                    cancelAnimationFrame(autoclickingInterval);
                     autoclickingInterval = null;
                 }
-            };
+            };            
 
             const updateSpeed = () => {
                 if (supply.isActive) {
@@ -115,15 +118,17 @@
             };
 
             rangeInput.addEventListener("input", () => {
-                numberInput.value = rangeInput.value;
+                numberInput.value = rangeInput.value; 
                 updateSpeed();
             });
-
+            
             numberInput.addEventListener("input", () => {
+                const val = Math.max(Number(numberInput.value), 1);
+                numberInput.value = Math.min(val, 1000);
                 rangeInput.value = numberInput.value;
                 updateSpeed();
-            });
-
+            });            
+            
             button.addEventListener("click", toggleActivation);
             supply.button = button;
             supply.startAutoclicking = startAutoclicking;
@@ -144,7 +149,7 @@
             which: digit,
             bubbles: true,
             cancelable: true,
-        });
+        });range
         document.dispatchEvent(keyDownEvent);
         const keyUpEvent = new KeyboardEvent("keyup", {
             code: keyCode,
