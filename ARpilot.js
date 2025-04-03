@@ -95,6 +95,7 @@
       constructor(settings, utils) {
           this.utils = utils;
           this.settings = settings;
+          this.suppliesClickEnabled = false;
           this.utils.addObserver((state) => {
               this.updateUI(state);
               if (state) {
@@ -130,7 +131,7 @@
           uiContainer.style = `position: fixed;top: 20px;left: 20px;width: 380px;height: 90%;background: ${colors.dark};border-radius: 10px;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);font-family: Arial, sans-serif;overflow: hidden;z-index: 10000;`;
 
           const header = document.createElement("div");
-          header.style = `display: flex;align-items: center;justify-content: space-between;padding: 5px 10px;background: ${colors.semindark};cursor: grab;`;
+          header.style = `display: flex;align-items: center;justify-content: space-between;padding: 5px 10px;background: ${colors.semindark}; cursor: grab !important;`;
 
           const titleBar = document.createElement("span");
           titleBar.innerHTML = "ARpilot";
@@ -146,7 +147,7 @@
               if (index === 0) btn.onclick = () => uiContainer.remove();
           });
 
-          header.style = `position: relative; display: flex;align-items: center;height: 30px;background: ${colors.semindark};padding: 0 10px;`;
+          header.style = `position: relative; display: flex;align-items: center;height: 30px;background: ${colors.semindark};padding: 0 10px; cursor: grab !important;`;
 
           header.appendChild(btnContainer);
           header.appendChild(titleBar);
@@ -247,16 +248,16 @@
               }
 
               if (event.key === this.settings.settings.binds.supplies) {
-                  let supplies = this.settings.settings.clickState.supplies;
+                  this.suppliesClickEnabled = !this.suppliesClickEnabled;
 
+                  let supplies = this.settings.settings.clickState.supplies;
                   for (let key in supplies) {
-                      supplies[key].state = !supplies[key].state;
                       this.updateButtonState(key, supplies[key].state);
                   }
 
-                  this.settings.saveSettings();
                   this.clickMechanic();
               }
+
           });
       }
 
@@ -296,7 +297,7 @@
 
               const keyDisplay = document.createElement("span");
               keyDisplay.innerText = this.settings.settings.binds[bindName] || "Not set";
-              keyDisplay.style = "font-weight: bold; color: #f28558; width: 50px;";
+              keyDisplay.style = "font-weight: bold; color: #f28558;";
               sectionDiv.appendChild(keyDisplay);
 
               const changeButton = document.createElement("button");
@@ -330,29 +331,37 @@
 
               Object.keys(allSupplies).forEach(supply => {
                   const supplyDiv = document.createElement("div");
-                  supplyDiv.style = "display: flex; align-items: center; gap: 10px;";
+                  supplyDiv.style = "display: flex; flex-direction: column; align-items: center; padding: 10px; gap: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.1);";
+
+                  const supplyTextGroup = document.createElement("div");
+                  supplyTextGroup.style = `width: 100%; display: flex; justify-content: space-between; gap: 10px;`;
 
                   const supplyLabel = document.createElement("label");
                   supplyLabel.innerText = allSupplies[supply].name;
                   supplyLabel.style = "width: 120px;";
-                  supplyDiv.appendChild(supplyLabel);
+                  supplyTextGroup.appendChild(supplyLabel);
 
                   const keyDisplay = document.createElement("span");
                   keyDisplay.innerText = allSupplies[supply].key !== undefined ? allSupplies[supply].key : "Not set";
-                  keyDisplay.style = "font-weight: bold; color: #f28558; width: 50px;";
-                  supplyDiv.appendChild(keyDisplay);
+                  keyDisplay.style = "font-weight: bold; color: #f28558;";
+                  supplyTextGroup.appendChild(keyDisplay);
+                  supplyDiv.appendChild(supplyTextGroup);
+
+                  const supplyBtnGroup = document.createElement("div");
+                  supplyBtnGroup.style = `width: 100%; display: flex; justify-content: flex-end; gap: 10px;`;
 
                   const changeButton = document.createElement("button");
                   changeButton.innerText = "Change";
                   changeButton.style = styleChangeButton;
                   changeButton.addEventListener("click", () => this.changeBind(supply, keyDisplay, true));
-                  supplyDiv.appendChild(changeButton);
+                  supplyBtnGroup.appendChild(changeButton);
 
                   const restoreButton = document.createElement("button");
                   restoreButton.innerText = "Restore";
                   restoreButton.style = styleRestoreButton;
                   restoreButton.addEventListener("click", () => this.restoreDefaultBind(supply, keyDisplay, true));
-                  supplyDiv.appendChild(restoreButton);
+                  supplyBtnGroup.appendChild(restoreButton);
+                  supplyDiv.appendChild(supplyBtnGroup);
 
                   suppliesContainer.appendChild(supplyDiv);
               });
@@ -367,23 +376,30 @@
       changeBind(bindName, keyDisplay, isSupply = false) {
           keyDisplay.innerText = "Press a key...";
           const onKeyPress = (e) => {
+              e.preventDefault();
+              const pressedKey = e.code;
+
               if (isSupply) {
                   if (this.settings.settings.clickState.supplies[bindName]) {
-                      this.settings.settings.clickState.supplies[bindName].key = e.key;
+                      this.settings.settings.clickState.supplies[bindName].key = pressedKey;
                   } else if (this.settings.settings.clickState[bindName]) {
-                      this.settings.settings.clickState[bindName].key = e.key;
+                      this.settings.settings.clickState[bindName].key = pressedKey;
                   }
               } else {
-                  this.settings.settings.binds[bindName] = e.key;
+                  this.settings.settings.binds[bindName] = pressedKey;
               }
-              keyDisplay.innerText = e.key;
+
+              keyDisplay.innerText = pressedKey;
               document.removeEventListener("keydown", onKeyPress);
               this.settings.saveSettings();
           };
+
           document.addEventListener("keydown", onKeyPress);
+
           setTimeout(() => {
               if (isSupply) {
-                  keyDisplay.innerText = this.settings.settings.clickState.supplies[bindName]?.key ||
+                  keyDisplay.innerText =
+                      this.settings.settings.clickState.supplies[bindName]?.key ||
                       this.settings.settings.clickState[bindName]?.key || "Not set";
               } else {
                   keyDisplay.innerText = this.settings.settings.binds[bindName] || "Not set";
@@ -510,7 +526,7 @@
           rangeInput.type = "range";
           rangeInput.classList.add("custom-range");
           rangeInput.min = "1";
-          rangeInput.max = "10000";
+          rangeInput.max = "500";
           rangeInput.value = supply.delay;
           rangeInput.style.width = "calc(100% - 100px)";
           rangeInput.style.height = "4px";
@@ -544,7 +560,7 @@
           const numberInput = document.createElement("input");
           numberInput.type = "number";
           numberInput.min = "1";
-          numberInput.max = "10000";
+          numberInput.max = "500";
           numberInput.value = supply.delay;
           numberInput.style = "width: 50px; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 5px; background-color: #111112; color: #d1d1d1;";
           numberInput.addEventListener("input", () => {
@@ -693,7 +709,7 @@
           };
 
           Object.values(this.settings.settings.clickState.supplies).forEach(supply => {
-              if (supply.state) {
+              if (this.suppliesClickEnabled && supply.state) {
                   startAutoclicking(supply);
               } else {
                   stopAutoclicking(supply);
