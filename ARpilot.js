@@ -52,6 +52,7 @@
 
           const defaultSettings = {
               developerMode: false,
+              antiIDLE: false,
               binds: {
                   display: "0",
                   supplies: "8",
@@ -114,6 +115,7 @@
           };
           this.initUI();
           this.EventListeners();
+          this.antiIDLE();
           this.clickMechanic();
       }
 
@@ -263,54 +265,91 @@
 
       createSettingsTab(content) {
           const settingsContainer = document.createElement("div");
-          settingsContainer.style = "display: flex; flex-direction: column; gap: 20px;";
+          settingsContainer.style = "display: flex; flex-direction: column; gap: 10px;";
 
           const styleChangeButton = `background-color: #ffcc00;color: #000;border: none;padding: 5px 10px;border-radius: 3px;text-transform: uppercase;font-size: 11px;font-weight: 500;font-family: BaseFontBold, FallbackFontBold;cursor: pointer;`;
           const styleRestoreButton = `background-color: #F44336;color: #fff;border: none;padding: 5px 10px;border-radius: 3px;text-transform: uppercase;font-size: 11px;font-weight: 500;font-family: BaseFontBold, FallbackFontBold;cursor: pointer;`;
 
           const devModeContainer = document.createElement("div");
-          devModeContainer.style = "display: flex; align-items: center; gap: 10px;";
+          devModeContainer.style = "display: flex; align-items: center; gap: 10px; flex-direction: column;";
+
+          const antiIDLE = document.createElement("div");
+          antiIDLE.style = "width: 100%;display: flex;align-items: center;gap: 10px;justify-content: space-between;border: 1px solid rgba(255, 255, 255, 0.1);border-radius: 5px;padding: 10px;box-sizing: border-box;";
+
+          const antiIDLELabel = document.createElement("label");
+          antiIDLELabel.innerText = "Pause Click";
+          antiIDLE.appendChild(antiIDLELabel);
+
+          const antiIDLEToggle = document.createElement("input");
+          antiIDLEToggle.type = "checkbox";
+          antiIDLEToggle.classList.add("ar-dev-checkbox");
+          antiIDLEToggle.innerHTML = `<style>input{--primary-color:#1677ff;--secondary-color:#fff; --third-color: rgb(17, 17, 18);--primary-hover-color:#4096ff;--checkbox-diameter:16px;--checkbox-border-radius:5px;--checkbox-border-color:#d9d9d9;--checkbox-border-width:1px;--checkbox-border-style:solid;--checkmark-size:1;appearance:none;-webkit-appearance:none;-moz-appearance:none;width:var(--checkbox-diameter);height:var(--checkbox-diameter);border-radius:var(--checkbox-border-radius);background:var(--third-color);border:var(--checkbox-border-width) var(--checkbox-border-style) var(--checkbox-border-color);transition:.3s;cursor:pointer;position:relative;box-sizing:border-box}input::before{content:"";position:absolute;top:40%;left:50%;width:4px;height:7px;border-right:2px solid var(--secondary-color);border-bottom:2px solid var(--secondary-color);transform:translate(-50%,-50%) rotate(45deg) scale(0);opacity:0;transition:.1s cubic-bezier(.71,-.46,.88,.6),opacity .1s}input::after{content:"";position:absolute;top:0;left:0;right:0;bottom:0;box-shadow:0 0 0 calc(var(--checkbox-diameter) / 2.5) var(--primary-color);border-radius:inherit;opacity:0;transition:.5s cubic-bezier(.12,.4,.29,1.46)}input:hover{border-color:var(--primary-color)}input:checked{background:var(--primary-color);border-color:#fff0}input:checked::before{opacity:1;transform:translate(-50%,-50%) rotate(45deg) scale(var(--checkmark-size));transition:.2s cubic-bezier(.12,.4,.29,1.46) .1s}input:active:not(:checked)::after{transition:none;box-shadow:none;opacity:1}</style><input type="checkbox">`
+          antiIDLEToggle.checked = this.settings.settings.antiIDLE;
+          antiIDLEToggle.addEventListener("change", () => {
+              this.settings.settings.antiIDLE = antiIDLEToggle.checked;
+              this.settings.saveSettings();
+              this.createSettingsTab(content);
+          });
+
+          antiIDLE.appendChild(antiIDLEToggle);
+          devModeContainer.appendChild(antiIDLE);
+
+          const devMode = document.createElement("div");
+          devMode.style = "width: 100%;display: flex;align-items: center;gap: 10px;justify-content: space-between;border: 1px solid rgba(255, 255, 255, 0.1);border-radius: 5px;padding: 10px;box-sizing: border-box;";
 
           const devModeLabel = document.createElement("label");
           devModeLabel.innerText = "Developer Mode";
-          devModeContainer.appendChild(devModeLabel);
+          devMode.appendChild(devModeLabel);
 
           const devModeToggle = document.createElement("input");
           devModeToggle.type = "checkbox";
+          devModeToggle.classList.add("ar-dev-checkbox");
+          devModeToggle.innerHTML = `<style>input{--primary-color:#1677ff;--secondary-color:#fff;--primary-hover-color:#4096ff;--checkbox-diameter:16px;--checkbox-border-radius:5px;--checkbox-border-color:#d9d9d9;--checkbox-border-width:1px;--checkbox-border-style:solid;--checkmark-size:1;appearance:none;-webkit-appearance:none;-moz-appearance:none;width:var(--checkbox-diameter);height:var(--checkbox-diameter);border-radius:var(--checkbox-border-radius);background:var(--third-color);border:var(--checkbox-border-width) var(--checkbox-border-style) var(--checkbox-border-color);transition:.3s;cursor:pointer;position:relative;box-sizing:border-box}input::before{content:"";position:absolute;top:40%;left:50%;width:4px;height:7px;border-right:2px solid var(--secondary-color);border-bottom:2px solid var(--secondary-color);transform:translate(-50%,-50%) rotate(45deg) scale(0);opacity:0;transition:.1s cubic-bezier(.71,-.46,.88,.6),opacity .1s}input::after{content:"";position:absolute;top:0;left:0;right:0;bottom:0;box-shadow:0 0 0 calc(var(--checkbox-diameter) / 2.5) var(--primary-color);border-radius:inherit;opacity:0;transition:.5s cubic-bezier(.12,.4,.29,1.46)}input:hover{border-color:var(--primary-color)}input:checked{background:var(--primary-color);border-color:#fff0}input:checked::before{opacity:1;transform:translate(-50%,-50%) rotate(45deg) scale(var(--checkmark-size));transition:.2s cubic-bezier(.12,.4,.29,1.46) .1s}input:active:not(:checked)::after{transition:none;box-shadow:none;opacity:1}</style><input type="checkbox">`
           devModeToggle.checked = this.settings.settings.developerMode;
           devModeToggle.addEventListener("change", () => {
               this.settings.settings.developerMode = devModeToggle.checked;
               this.settings.saveSettings();
               this.createSettingsTab(content);
           });
-          devModeContainer.appendChild(devModeToggle);
+
+          devMode.appendChild(devModeToggle);
+          devModeContainer.appendChild(devMode);
           settingsContainer.appendChild(devModeContainer);
 
           const createBindSection = (label, bindName) => {
               const sectionDiv = document.createElement("div");
-              sectionDiv.style = "display: flex; align-items: center; gap: 10px;";
+              sectionDiv.style = "display: flex; align-items: center; gap: 10px; flex-direction: column; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 5px;";
+
+              const displayElements = document.createElement("div");
+              displayElements.style = `width: 100%;display: flex; justify-content: space-between;`;
 
               const labelElement = document.createElement("label");
               labelElement.innerText = label;
               labelElement.style = "width: 120px;";
-              sectionDiv.appendChild(labelElement);
+              displayElements.appendChild(labelElement);
 
               const keyDisplay = document.createElement("span");
               keyDisplay.innerText = this.settings.settings.binds[bindName] || "Not set";
               keyDisplay.style = "font-weight: bold; color: #f28558;";
-              sectionDiv.appendChild(keyDisplay);
+              displayElements.appendChild(keyDisplay);
+
+              const btnGroup = document.createElement("div");
+              btnGroup.style = `width: 100%;display: flex; justify-content: flex-end; gap: 10px;`;
 
               const changeButton = document.createElement("button");
               changeButton.innerText = "Change";
               changeButton.style = styleChangeButton;
               changeButton.addEventListener("click", () => this.changeBind(bindName, keyDisplay));
-              sectionDiv.appendChild(changeButton);
+              btnGroup.appendChild(changeButton);
 
               const restoreButton = document.createElement("button");
               restoreButton.innerText = "Restore";
               restoreButton.style = styleRestoreButton;
               restoreButton.addEventListener("click", () => this.restoreDefaultBind(bindName, keyDisplay));
-              sectionDiv.appendChild(restoreButton);
+              btnGroup.appendChild(restoreButton);
+
+              sectionDiv.appendChild(displayElements);
+              sectionDiv.appendChild(btnGroup);
 
               return sectionDiv;
           };
@@ -629,6 +668,72 @@
           if (this.contentContainer) {
               this.contentContainer.style.height = `calc(100% - ${inBattle ? 240 : 145}px)`;
           }
+      }
+
+      antiIDLE() {
+          this.antiIdlePaused = false;
+
+          const fadeOut = (el) => {
+              el.style.transition = 'opacity 0.3s ease';
+              el.style.opacity = '0';
+              setTimeout(() => {
+                  el.style.pointerEvents = 'none';
+              }, 300);
+          };
+
+          const isInactivityDialog = (el) => {
+              if (!el) return false;
+
+              const text = el.innerText?.toLowerCase() || '';
+              return text.includes('você foi pausado') || text.includes('inatividade') || text.includes('kick');
+          };
+
+          const hasInteractiveElements = (el) => {
+              return el.querySelector('input, button, textarea, select');
+          };
+
+          const handleIdleBypass = () => {
+              if (this.antiIdlePaused || !this.utils.inBattle || !this.settings.settings.antiIDLE) return;
+
+              const pauseDialog = document.querySelector(".DialogContainerComponentStyle-container");
+              const modalRoot = document.querySelector(".ModalStyle-rootHover");
+              const kickOutModal = document.querySelector("#modal-root > div");
+
+              if (pauseDialog && isInactivityDialog(pauseDialog) && !hasInteractiveElements(pauseDialog)) {
+                  fadeOut(pauseDialog);
+              }
+
+              if (modalRoot && isInactivityDialog(modalRoot) && !hasInteractiveElements(modalRoot)) {
+                  fadeOut(modalRoot);
+              }
+
+              if (kickOutModal && isInactivityDialog(kickOutModal) && !hasInteractiveElements(kickOutModal)) {
+                  kickOutModal.click();
+              }
+          };
+
+          const mainObserver = new MutationObserver(handleIdleBypass);
+          mainObserver.observe(document.body, {
+              childList: true,
+              subtree: true,
+          });
+
+          const garageObserver = new MutationObserver(() => {
+              const garage = document.querySelector(".GarageCommonStyle-garageContainer");
+
+              const visible = garage && getComputedStyle(garage).opacity !== "0" && garage.offsetParent !== null;
+              this.antiIdlePaused = visible;
+          });
+
+          garageObserver.observe(document.body, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class']
+          });
+
+          this.idleObserver = mainObserver;
+          this.garageObserver = garageObserver;
       }
 
       clickMechanic() {
