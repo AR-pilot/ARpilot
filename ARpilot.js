@@ -234,14 +234,14 @@
           document.addEventListener("keydown", (event) => {
               if (this.utils.isChatOpen) return;
 
-              if (event.key === this.settings.settings.binds.display) {
+              if (event.code === this.settings.settings.binds.display) {
                   const uiContainer = document.getElementById("arpilot-ui");
                   if (uiContainer) {
                       uiContainer.style.display = uiContainer.style.display === "none" ? "block" : "none";
                   }
               }
 
-              if (event.key === this.settings.settings.binds.mines) {
+              if (event.code === this.settings.settings.binds.mines) {
                   let mine = this.settings.settings.clickState.mine;
                   mine.state = !mine.state;
                   this.settings.saveSettings();
@@ -249,7 +249,7 @@
                   this.clickMechanic();
               }
 
-              if (event.key === this.settings.settings.binds.supplies) {
+              if (event.code === this.settings.settings.binds.supplies) {
                   this.suppliesClickEnabled = !this.suppliesClickEnabled;
 
                   let supplies = this.settings.settings.clickState.supplies;
@@ -259,9 +259,9 @@
 
                   this.clickMechanic();
               }
-
           });
       }
+
 
       createSettingsTab(content) {
           const settingsContainer = document.createElement("div");
