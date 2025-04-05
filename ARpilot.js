@@ -54,9 +54,9 @@
               developerMode: false,
               antiIDLE: false,
               binds: {
-                  display: "0",
-                  supplies: "8",
-                  mines: "9"
+                  display: "Digit0",
+                  supplies: "Digit8",
+                  mines: "Digit9"
               },
               clickState: {
                   supplies: {
@@ -97,14 +97,6 @@
           this.utils = utils;
           this.settings = settings;
           this.suppliesClickEnabled = false;
-          this.utils.addObserver((state) => {
-              this.updateUI(state);
-              if (state) {
-                  this.clickMechanic();
-              } else {
-                  this.stopAllClicking();
-              }
-          });
           this.suppliesIcon = {
               firstaid: { icon: 'https://tankionline.com/play/static/images/Repair.13e5e240.svg' },
               armor: { icon: 'https://tankionline.com/play/static/images/Shield.6319a2d0.svg' },
@@ -449,9 +441,9 @@
 
       restoreDefaultBind(bindName, keyDisplay, isSupply = false) {
           const defaultKeys = {
-              display: "0",
-              supplies: "8",
-              mines: "9",
+              display: "Digit0",
+              supplies: "Digit8",
+              mines: "Digit9",
               firstaid: "Digit1",
               doublearmor: "Digit2",
               doubledamage: "Digit3",
