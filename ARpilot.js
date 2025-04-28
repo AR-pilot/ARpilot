@@ -49,8 +49,15 @@
 
         loadSettings() {
             let savedSettings = JSON.parse(localStorage.getItem("667-arpilot")) || null;
-
             const defaultSettings = {
+                resize: {
+                    enabled: false,
+                    default: {
+                        width: "390px",
+                        height: "90%"
+                    },
+                    lastSize: null
+                },
                 developerMode: false,
                 antiIDLE: false,
                 suppliesClickEnabled: false,
@@ -105,13 +112,55 @@
                 mine: { icon: 'https://tankionline.com/play/static/images/Mine.230cdfaa.svg' },
                 goldbox: { icon: 'https://tankionline.com/play/static/images/GoldBox.61e0017c.svg' }
             };
-            this.initUI();
+            this.uiContainer = null;
+            this.autoDisableTimer = null;
+            this.updateTimersInterval = null;
+            this.init();
             this.EventListeners();
             this.antiIDLE();
             this.clickMechanic();
+            this.uiContainer = null;
+            this.resizeObserver = null;
         }
 
-        initUI() {
+        enforceSizeLimits(element) {
+            const minWidth = this.settings.settings.resize?.minWidth || 310;
+            const minHeight = this.settings.settings.resize?.minHeight || 350;
+
+            const currentWidth = parseInt(element.style.width) || element.offsetWidth;
+            const currentHeight = parseInt(element.style.height) || element.offsetHeight;
+
+            const hitWidth = currentWidth < minWidth;
+            const hitHeight = currentHeight < minHeight;
+
+            if (hitWidth || hitHeight) {
+                if (hitWidth) element.style.width = `${minWidth}px`;
+                if (hitHeight) element.style.height = `${minHeight}px`;
+
+                if (this.hitLimitTimeout) {
+                    clearTimeout(this.hitLimitTimeout);
+                }
+
+                element.classList.add('hit-limit');
+
+                this.hitLimitTimeout = setTimeout(() => {
+                    element.classList.remove('hit-limit');
+                }, 500);
+            }
+
+            element.style.minWidth = `${minWidth}px`;
+            element.style.minHeight = `${minHeight}px`;
+        }
+
+        init() {
+            const style = document.createElement('style');
+            style.textContent = `.action-timer {
+        font-variant-numeric: tabular-nums;
+        min-width: 60px;
+        display: inline-block;
+        text-align: right;
+    } #arpilot-ui.hit-limit {outline: 2px dashed #ff3b30 !important;animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;} @keyframes shake { 0%, 100% { transform: translateX(0); }10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }20%, 40%, 60%, 80% { transform: translateX(3px); }}`;
+            document.head.appendChild(style);
             const colors = {
                 dark: 'rgba(28, 28, 30, 0.9)',
                 semidark: 'rgba(44, 44, 46, 0.8)',
@@ -120,9 +169,44 @@
                 active: '#f28558'
             };
 
+            const initialWidth = this.settings.settings.resize.enabled && this.settings.settings.resize.lastSize
+            ? this.settings.settings.resize.lastSize.width
+            : this.settings.settings.resize.default.width;
+
+            const initialHeight = this.settings.settings.resize.enabled && this.settings.settings.resize.lastSize
+            ? this.settings.settings.resize.lastSize.height
+            : this.settings.settings.resize.default.height;
+
             const uiContainer = document.createElement("div");
             uiContainer.id = "arpilot-ui";
-            uiContainer.style = `position: fixed;top: 20px;left: 20px;width: 380px;height: 90%;background: ${colors.dark};border-radius: 10px;box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.3);font-family: -apple-system, BlinkMacSystemFont, sans-serif;overflow: hidden;z-index: 10000;backdrop-filter: blur(20px);border: 1px solid rgba(255, 255, 255, 0.1);`;
+            uiContainer.style = `resize: ${this.settings.settings.resize?.enabled ? "both" : "none"};position: fixed;top: 20px;left: 20px;width: ${initialWidth};height: ${initialHeight};min-width: ${this.settings.settings.resize?.minWidth || 310}px;min-height: ${this.settings.settings.resize?.minHeight || 350}px;background: ${colors.dark};border-radius: 10px;box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.3);font-family: -apple-system, BlinkMacSystemFont, sans-serif;overflow: ${this.settings.settings.resize?.enabled ? "auto" : "hidden"};z-index: 10000;backdrop-filter: blur(20px);border: 1px solid rgba(255, 255, 255, 0.1);box-sizing: border-box !important;`;
+
+            if (!this.settings.settings.resize?.enabled) {
+                this.originalSize = {
+                    width: initialWidth,
+                    height: initialHeight
+                };
+            }
+
+            this.uiContainer = uiContainer;
+            this.resizeObserver = new ResizeObserver((entries) => {
+                if (!this.settings.settings.resize?.enabled) return;
+
+                const uiElement = entries[0].target;
+                this.enforceSizeLimits(uiElement);
+
+                if (!uiElement.classList.contains('hit-limit')) {
+                    this.settings.settings.resize.lastSize = {
+                        width: uiElement.style.width,
+                        height: uiElement.style.height
+                    };
+                    this.settings.saveSettings();
+                }
+            });
+
+            if (this.settings.settings.resize?.enabled) {
+                this.resizeObserver.observe(uiContainer);
+            }
 
             const header = document.createElement("div");
             header.style = `position: relative;display: flex;align-items: center;height: 40px;background: rgba(30, 30, 30, 0.8);padding: 0 15px;cursor: grab;border-top-left-radius: 10px;border-top-right-radius: 10px;border-bottom: 1px solid rgba(255, 255, 255, 0.05);`;
@@ -165,7 +249,7 @@
             const tabs = document.createElement("div");
             tabs.style = `display: flex;justify-content: flex-start;background: rgba(40, 40, 42, 0.8);padding: 8px 15px;gap: 20px;border-bottom: 1px solid rgba(255, 255, 255, 0.05);`;
 
-            const tabNames = ["Supplies", "Settings"];
+            const tabNames = ["Supplies", "Actions", "Settings"];
             tabNames.forEach((tabName) => {
                 const tab = document.createElement("div");
                 tab.innerText = tabName;
@@ -184,6 +268,8 @@
                         this.createSettingsTab(contentContainer);
                     } else if (tabName === "Supplies") {
                         this.createSuppliesTab(contentContainer);
+                    } else if (tabName === "Actions") {
+                        this.createActionsTab(contentContainer);
                     }
 
                     document.querySelectorAll('#arpilot-ui .tab').forEach(t => {
@@ -346,6 +432,84 @@
             antiIDLE.appendChild(antiIDLEToggle);
             devModeContainer.appendChild(antiIDLE);
 
+            const resizeToggleDiv = document.createElement("div");
+            resizeToggleDiv.style = "display:flex;align-items:center;justify-content:space-between;";
+
+            const resizeLabel = document.createElement("label");
+            resizeLabel.innerText = "Custom Resize";
+            resizeLabel.style = "color:#fff;font-size:13px;font-weight:500;";
+            resizeToggleDiv.appendChild(resizeLabel);
+
+            const resizeToggle = document.createElement("input");
+            resizeToggle.type = "checkbox";
+            resizeToggle.classList.add("ar-dev-checkbox");
+            resizeToggle.checked = this.settings.settings.resize.enabled;
+
+            resizeToggle.addEventListener("change", () => {
+                const newState = resizeToggle.checked;
+                this.settings.settings.resize.enabled = newState;
+
+                const uiContainer = document.getElementById('arpilot-ui');
+                if (!uiContainer) {
+                    console.error("UI Container não encontrado no DOM");
+                    return;
+                }
+
+                if (this.resizeObserver) {
+                    try {
+                        this.resizeObserver.unobserve(uiContainer);
+                    } catch (e) {
+                        console.warn("Erro ao desconectar observer:", e);
+                    }
+                }
+
+                if (newState) {
+                    uiContainer.style.resize = "both";
+
+                    if (this.settings.settings.resize.lastSize) {
+                        uiContainer.style.width = this.settings.settings.resize.lastSize.width;
+                        uiContainer.style.height = this.settings.settings.resize.lastSize.height;
+                    }
+
+                    if (!this.resizeObserver) {
+                        this.resizeObserver = new ResizeObserver((entries) => {
+                            if (!this.settings.settings.resize?.enabled) return;
+
+                            const uiElement = entries[0]?.target;
+                            if (!uiElement) return;
+
+                            this.enforceSizeLimits(uiElement);
+
+                            if (!uiElement.classList.contains('hit-limit')) {
+                                this.settings.settings.resize.lastSize = {
+                                    width: uiElement.style.width,
+                                    height: uiElement.style.height
+                                };
+                                this.settings.saveSettings();
+                            }
+                        });
+                    }
+
+                    try {
+                        this.resizeObserver.observe(uiContainer);
+                    } catch (e) {
+                        console.error("Erro ao observar container:", e);
+                    }
+                } else {
+                    uiContainer.style.resize = "none";
+
+                    uiContainer.style.width = this.settings.settings.resize.default.width;
+                    uiContainer.style.height = this.settings.settings.resize.default.height;
+
+                    this.settings.settings.resize.lastSize = null;
+                }
+
+                this.settings.saveSettings();
+            });
+
+            resizeToggleDiv.appendChild(resizeToggle);
+            devModeContainer.appendChild(resizeToggleDiv);
+
             const devMode = document.createElement("div");
             devMode.style = "display:flex;align-items:center;justify-content:space-between;";
 
@@ -410,7 +574,7 @@
                 return sectionDiv;
             };
 
-            settingsContainer.appendChild(createBindSection("Display UI", "display"));
+            settingsContainer.appendChild(createBindSection("Display ", "display"));
             settingsContainer.appendChild(createBindSection("Supplies", "supplies"));
             settingsContainer.appendChild(createBindSection("Mines", "mines"));
 
@@ -793,13 +957,483 @@
             });
         }
 
-        updateUI(inBattle) {
+        update(inBattle) {
             if (this.messageNotification) {
                 this.messageNotification.style.display = inBattle ? "none" : "flex";
             }
             if (this.contentContainer) {
                 this.contentContainer.style.height = `calc(100% - ${inBattle ? 240 : 145}px)`;
             }
+        }
+
+        createActionsTab(content) {
+            const colors = {
+                dark: 'rgba(28, 28, 30, 0.9)',
+                semidark: 'rgba(44, 44, 46, 0.8)',
+                lighttext: '#ffffff',
+                darktext: 'rgba(255, 255, 255, 0.7)',
+                active: '#f28558'
+            };
+
+            const actionsContainer = document.createElement("div");
+            actionsContainer.style = `display:flex;flex-direction:column;gap:12px;padding:0 5px;`;
+
+            // 1. Seção de Auto Desligar Supplies
+            const autoDisableSection = document.createElement("div");
+            autoDisableSection.style = `display:flex;flex-direction:column;gap:8px;background:${colors.semidark};border-radius:8px;padding:12px;`;
+
+            const autoDisableLabel = document.createElement("h4");
+            autoDisableLabel.innerText = "Auto Disable Supplies";
+            autoDisableLabel.style = `color:${colors.lighttext};font-size:14px;font-weight:600;margin:0 0 8px 0;`;
+            autoDisableSection.appendChild(autoDisableLabel);
+
+            const autoDisableDesc = document.createElement("p");
+            autoDisableDesc.innerText = "Automatically disable specific supplies after X minutes";
+            autoDisableDesc.style = `color:${colors.darktext};font-size:12px;margin:0 0 12px 0;`;
+            autoDisableSection.appendChild(autoDisableDesc);
+
+            // Dropdown para selecionar o supply
+            const supplySelectContainer = document.createElement("div");
+            supplySelectContainer.style = "display:flex;align-items:center;gap:10px;margin-bottom:10px;";
+
+            const supplySelectLabel = document.createElement("label");
+            supplySelectLabel.innerText = "Supply:";
+            supplySelectLabel.style = `color:${colors.lighttext};font-size:13px;min-width:60px;`;
+            supplySelectContainer.appendChild(supplySelectLabel);
+
+            const supplySelect = document.createElement("select");
+            supplySelect.style = `flex:1;padding:6px 8px;border-radius:4px;background:${colors.dark};border:1px solid rgba(255,255,255,0.1);color:${colors.lighttext};font-size:13px;`;
+
+            const supplyOptions = [
+                { value: "firstaid", text: "First Aid" },
+                { value: "armor", text: "Double Armor" },
+                { value: "damage", text: "Double Damage" },
+                { value: "nitro", text: "Nitro" },
+                { value: "mine", text: "Mines" },
+                { value: "goldbox", text: "Gold Box" }
+            ];
+
+            supplyOptions.forEach(option => {
+                const optElement = document.createElement("option");
+                optElement.value = option.value;
+                optElement.textContent = option.text;
+                supplySelect.appendChild(optElement);
+            });
+            supplySelectContainer.appendChild(supplySelect);
+            autoDisableSection.appendChild(supplySelectContainer);
+
+            // Dropdown para selecionar o tempo
+            const timeSelectContainer = document.createElement("div");
+            timeSelectContainer.style = "display:flex;align-items:center;gap:10px;margin-bottom:10px;";
+
+            const timeSelectLabel = document.createElement("label");
+            timeSelectLabel.innerText = "After:";
+            timeSelectLabel.style = `color:${colors.lighttext};font-size:13px;min-width:60px;`;
+            timeSelectContainer.appendChild(timeSelectLabel);
+
+            const timeSelect = document.createElement("select");
+            timeSelect.style = `flex:1;padding:6px 8px;border-radius:4px;background:${colors.dark};border:1px solid rgba(255,255,255,0.1);color:${colors.lighttext};font-size:13px;`;
+
+            const timeOptions = [
+                { value: "5", text: "5 minutes" },
+                { value: "30", text: "30 minutes" },
+                { value: "90", text: "90 minutes" },
+                { value: "custom", text: "Custom..." }
+            ];
+
+            timeOptions.forEach(option => {
+                const optElement = document.createElement("option");
+                optElement.value = option.value;
+                optElement.textContent = option.text;
+                timeSelect.appendChild(optElement);
+            });
+            timeSelectContainer.appendChild(timeSelect);
+            autoDisableSection.appendChild(timeSelectContainer);
+
+            // Input customizado para tempo
+            const customTimeContainer = document.createElement("div");
+            customTimeContainer.style = "display:none;flex-direction:column;gap:8px;margin-top:8px;";
+
+            const customTimeInput = document.createElement("input");
+            customTimeInput.type = "number";
+            customTimeInput.min = "1";
+            customTimeInput.max = "999";
+            customTimeInput.placeholder = "Enter minutes (1-999)";
+            customTimeInput.style = `padding:6px 8px;border-radius:4px;background:${colors.dark};border:1px solid rgba(255,255,255,0.1);color:${colors.lighttext};font-size:13px;`;
+
+            timeSelect.addEventListener("change", () => {
+                if (timeSelect.value === "custom") {
+                    customTimeContainer.style.display = "flex";
+                } else {
+                    customTimeContainer.style.display = "none";
+                }
+            });
+
+            customTimeContainer.appendChild(customTimeInput);
+            autoDisableSection.appendChild(customTimeContainer);
+
+            // Botão para adicionar ação
+            const addActionBtn = document.createElement("button");
+            addActionBtn.innerText = "Add Auto-Disable Action";
+            addActionBtn.style = `background:rgba(255,255,255,0.08);color:#007aff;border:1px solid rgba(255,255,255,0.2);padding:8px 12px;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s ease;margin-top:8px;`;
+            addActionBtn.addEventListener("click", () => {
+                const selectedSupply = supplySelect.value;
+                let minutes = timeSelect.value === "custom" ? customTimeInput.value : timeSelect.value;
+
+                if (!minutes || isNaN(minutes) || minutes < 1 || minutes > 999) {
+                    alert("Please enter a valid time between 1 and 999 minutes");
+                    return;
+                }
+
+                minutes = parseInt(minutes);
+                this.addAutoDisableAction(selectedSupply, minutes);
+            });
+            autoDisableSection.appendChild(addActionBtn);
+
+            // Lista de ações ativas
+            const activeActionsContainer = document.createElement("div");
+            activeActionsContainer.style = "display:flex;flex-direction:column;gap:8px;margin-top:12px;";
+
+            const activeActionsLabel = document.createElement("h5");
+            activeActionsLabel.innerText = "Active Auto-Disable Actions";
+            activeActionsLabel.style = `color:${colors.lighttext};font-size:13px;font-weight:600;margin:0 0 4px 0;`;
+            activeActionsContainer.appendChild(activeActionsLabel);
+
+            const activeActionsList = document.createElement("div");
+            activeActionsList.id = "active-auto-disable-actions";
+            activeActionsList.style = "display:flex;flex-direction:column;gap:6px;";
+            activeActionsContainer.appendChild(activeActionsList);
+
+            autoDisableSection.appendChild(activeActionsContainer);
+            actionsContainer.appendChild(autoDisableSection);
+
+            // 2. Seção de Click Behavior (simplificada)
+            const clickModeSection = document.createElement("div");
+            clickModeSection.style = `display:flex;flex-direction:column;gap:8px;background:${colors.semidark};border-radius:8px;padding:12px;`;
+
+            const clickModeLabel = document.createElement("h4");
+            clickModeLabel.innerText = "Click Behavior";
+            clickModeLabel.style = `color:${colors.lighttext};font-size:14px;font-weight:600;margin:0 0 8px 0;`;
+            clickModeSection.appendChild(clickModeLabel);
+
+            // Estilo para os checkboxes
+            const checkboxStyle = `
+        .ar-checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            border-radius: 6px;
+            background: rgba(28,28,30,0.5);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .ar-checkbox-container:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .ar-checkbox {
+            position: relative;
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid rgba(255,255,255,0.3);
+            background: transparent;
+            transition: all 0.2s ease;
+        }
+        .ar-checkbox.checked {
+            border-color: ${colors.active};
+            background: rgba(242,133,88,0.2);
+        }
+        .ar-checkbox.checked::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            background: ${colors.active};
+        }
+        .ar-checkbox-label {
+            color: ${colors.lighttext};
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .ar-checkbox-desc {
+            color: ${colors.darktext};
+            font-size: 11px;
+        }
+    `;
+
+            const styleElement = document.createElement('style');
+            styleElement.textContent = checkboxStyle;
+            document.head.appendChild(styleElement);
+
+            // Opção Normal
+            const normalOption = document.createElement("label");
+            normalOption.className = "ar-checkbox-container";
+
+            const normalCheckbox = document.createElement("input");
+            normalCheckbox.type = "radio";
+            normalCheckbox.name = "clickMode";
+            normalCheckbox.value = "normal";
+            normalCheckbox.style.display = "none";
+            normalCheckbox.checked = this.settings.settings.clickMode === "normal";
+
+            const normalCustomCheckbox = document.createElement("div");
+            normalCustomCheckbox.className = `ar-checkbox ${this.settings.settings.clickMode === "normal" ? 'checked' : ''}`;
+
+            const normalLabel = document.createElement("div");
+            const normalTitle = document.createElement("div");
+            normalTitle.className = "ar-checkbox-label";
+            normalTitle.textContent = "Normal Mode";
+            const normalDesc = document.createElement("div");
+            normalDesc.className = "ar-checkbox-desc";
+            normalDesc.textContent = "Auto-click works normally";
+            normalLabel.appendChild(normalTitle);
+            normalLabel.appendChild(normalDesc);
+
+            normalOption.appendChild(normalCheckbox);
+            normalOption.appendChild(normalCustomCheckbox);
+            normalOption.appendChild(normalLabel);
+
+            normalOption.addEventListener("click", () => {
+                this.settings.settings.clickMode = "normal";
+                this.settings.saveSettings();
+                document.querySelectorAll('.ar-checkbox').forEach(el => el.classList.remove('checked'));
+                normalCustomCheckbox.classList.add('checked');
+                this.clickMechanic();
+            });
+
+            // Opção Híbrida
+            const hybridOption = document.createElement("label");
+            hybridOption.className = "ar-checkbox-container";
+
+            const hybridCheckbox = document.createElement("input");
+            hybridCheckbox.type = "radio";
+            hybridCheckbox.name = "clickMode";
+            hybridCheckbox.value = "hybrid";
+            hybridCheckbox.style.display = "none";
+            hybridCheckbox.checked = this.settings.settings.clickMode === "hybrid";
+
+            const hybridCustomCheckbox = document.createElement("div");
+            hybridCustomCheckbox.className = `ar-checkbox ${this.settings.settings.clickMode === "hybrid" ? 'checked' : ''}`;
+
+            const hybridLabel = document.createElement("div");
+            const hybridTitle = document.createElement("div");
+            hybridTitle.className = "ar-checkbox-label";
+            hybridTitle.textContent = "Hybrid Mode";
+            const hybridDesc = document.createElement("div");
+            hybridDesc.className = "ar-checkbox-desc";
+            hybridDesc.textContent = "Auto-click + manual multiplier activation";
+            hybridLabel.appendChild(hybridTitle);
+            hybridLabel.appendChild(hybridDesc);
+
+            hybridOption.appendChild(hybridCheckbox);
+            hybridOption.appendChild(hybridCustomCheckbox);
+            hybridOption.appendChild(hybridLabel);
+
+            hybridOption.addEventListener("click", () => {
+                this.settings.settings.clickMode = "hybrid";
+                this.settings.saveSettings();
+                document.querySelectorAll('.ar-checkbox').forEach(el => el.classList.remove('checked'));
+                hybridCustomCheckbox.classList.add('checked');
+                this.clickMechanic();
+            });
+
+            clickModeSection.appendChild(normalOption);
+            clickModeSection.appendChild(hybridOption);
+            //actionsContainer.appendChild(clickModeSection);
+
+            // Adiciona todos os elementos ao content
+            content.innerHTML = "";
+            content.appendChild(actionsContainer);
+
+            // Carrega as ações ativas
+            this.loadActiveAutoDisableActions();
+        }
+
+        addAutoDisableAction(supplyType, minutes) {
+            if (!this.settings.settings.autoDisableActions) {
+                this.settings.settings.autoDisableActions = [];
+            }
+
+            const existingIndex = this.settings.settings.autoDisableActions.findIndex(
+                action => action.supplyType === supplyType
+            );
+
+            if (existingIndex >= 0) {
+                this.settings.settings.autoDisableActions[existingIndex].minutes = minutes;
+                this.settings.settings.autoDisableActions[existingIndex].startTime = Date.now();
+            } else {
+                this.settings.settings.autoDisableActions.push({
+                    supplyType,
+                    minutes,
+                    startTime: Date.now()
+                });
+            }
+
+            this.settings.saveSettings();
+            this.loadActiveAutoDisableActions();
+
+            if (!this.autoDisableTimer) {
+                this.startAutoDisableTimer();
+            }
+        }
+
+        loadActiveAutoDisableActions() {
+            const activeActionsList = document.getElementById("active-auto-disable-actions");
+            if (!activeActionsList) return;
+
+            activeActionsList.innerHTML = "";
+
+            if (!this.settings.settings.autoDisableActions || this.settings.settings.autoDisableActions.length === 0) {
+                const noActions = document.createElement("div");
+                noActions.innerText = "No active auto-disable actions";
+                noActions.style = "color:rgba(255,255,255,0.5);font-size:12px;font-style:italic;padding:8px 0;text-align:center;";
+                activeActionsList.appendChild(noActions);
+                return;
+            }
+
+            if (this.updateTimersInterval) {
+                clearInterval(this.updateTimersInterval);
+            }
+
+            const updateAllTimers = () => {
+                const now = Date.now();
+                const actionItems = activeActionsList.querySelectorAll(".auto-disable-action-item");
+
+                this.settings.settings.autoDisableActions.forEach((action, index) => {
+                    if (index >= actionItems.length) return;
+
+                    const elapsedMs = now - action.startTime;
+                    const remainingMs = Math.max(0, (action.minutes * 60000) - elapsedMs);
+                    const minutes = Math.floor(remainingMs / 60000);
+                    const seconds = Math.floor((remainingMs % 60000) / 1000);
+
+                    const timerElement = actionItems[index].querySelector(".action-timer");
+                    if (timerElement) {
+                        timerElement.textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+
+                        // Muda a cor quando faltar menos de 1 minuto
+                        if (remainingMs < 60000) {
+                            timerElement.style.color = "#ff3b30";
+                        } else {
+                            timerElement.style.color = "#a1a1a6";
+                        }
+                    }
+                });
+            };
+
+            this.settings.settings.autoDisableActions.forEach((action, index) => {
+                const actionItem = document.createElement("div");
+                actionItem.className = "auto-disable-action-item";
+                actionItem.style = "display:flex;justify-content:space-between;align-items:center;background:rgba(28,28,30,0.8);border-radius:6px;padding:8px 10px;margin-bottom:6px;";
+
+                const actionText = document.createElement("div");
+                actionText.style = "display:flex;align-items:center;gap:8px;";
+
+                // Ícone do supply
+                const icon = document.createElement("img");
+                icon.src = this.suppliesIcon[action.supplyType]?.icon || "";
+                icon.style = "width:16px;height:16px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.2));";
+                actionText.appendChild(icon);
+
+                let supplyName = action.supplyType;
+                switch(action.supplyType) {
+                    case 'firstaid': supplyName = 'First Aid'; break;
+                    case 'armor': supplyName = 'Double Armor'; break;
+                    case 'damage': supplyName = 'Double Damage'; break;
+                    case 'nitro': supplyName = 'Nitro'; break;
+                    case 'mine': supplyName = 'Mines'; break;
+                    case 'goldbox': supplyName = 'Gold Box'; break;
+                }
+
+                const nameElement = document.createElement("span");
+                nameElement.textContent = supplyName;
+                nameElement.style = "color:#fff;font-size:13px;min-width:80px;";
+                actionText.appendChild(nameElement);
+
+                const timerElement = document.createElement("span");
+                timerElement.className = "action-timer";
+                timerElement.style = "color:#a1a1a6;font-size:12px;font-family:monospace;margin-left:8px;";
+                actionText.appendChild(timerElement);
+
+                actionItem.appendChild(actionText);
+
+                const removeBtn = document.createElement("button");
+                removeBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 3L3 9M3 3L9 9" stroke="#ff3b30" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+                removeBtn.style = "background:rgba(255,59,48,0.1);border:none;border-radius:4px;padding:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;";
+                removeBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    this.settings.settings.autoDisableActions.splice(index, 1);
+                    this.settings.saveSettings();
+                    this.loadActiveAutoDisableActions();
+
+                    if (this.settings.settings.autoDisableActions.length === 0 && this.autoDisableTimer) {
+                        clearInterval(this.autoDisableTimer);
+                        this.autoDisableTimer = null;
+                    }
+                });
+                actionItem.appendChild(removeBtn);
+
+                activeActionsList.appendChild(actionItem);
+            });
+
+            updateAllTimers();
+
+            this.updateTimersInterval = setInterval(updateAllTimers, 1000);
+        }
+
+        startAutoDisableTimer() {
+            if (this.autoDisableTimer) {
+                clearInterval(this.autoDisableTimer);
+            }
+
+            this.autoDisableTimer = setInterval(() => {
+                if (!this.settings.settings.autoDisableActions || this.settings.settings.autoDisableActions.length === 0) {
+                    clearInterval(this.autoDisableTimer);
+                    this.autoDisableTimer = null;
+
+                    if (this.updateTimersInterval) {
+                        clearInterval(this.updateTimersInterval);
+                        this.updateTimersInterval = null;
+                    }
+                    return;
+                }
+
+                const now = Date.now();
+                let needsUpdate = false;
+
+                for (let i = this.settings.settings.autoDisableActions.length - 1; i >= 0; i--) {
+                    const action = this.settings.settings.autoDisableActions[i];
+                    const elapsedMs = now - action.startTime;
+
+                    if (elapsedMs >= action.minutes * 60000) {
+                        // Desativa o supply
+                        if (action.supplyType === 'mine') {
+                            this.settings.settings.clickState.mine.state = false;
+                            this.updateButtonState('mine', false);
+                        } else if (action.supplyType === 'goldbox') {
+                            this.settings.settings.clickState.goldbox.state = false;
+                            this.updateButtonState('goldbox', false);
+                        } else if (this.settings.settings.clickState.supplies[action.supplyType]) {
+                            this.settings.settings.clickState.supplies[action.supplyType].state = false;
+                            this.updateButtonState(action.supplyType, false);
+                        }
+
+                        this.settings.settings.autoDisableActions.splice(i, 1);
+                        needsUpdate = true;
+                    }
+                }
+
+                if (needsUpdate) {
+                    this.settings.saveSettings();
+                    this.loadActiveAutoDisableActions();
+                    this.clickMechanic();
+                }
+            }, 1000);
         }
 
         antiIDLE() {
@@ -871,9 +1505,6 @@
         clickMechanic() {
             if (!this.utils.inBattle) return;
 
-            // =============================================
-            // 1. Debounce
-            // =============================================
             const pressKey = (() => {
                 const lastEvent = {};
                 return (key) => {
@@ -906,10 +1537,14 @@
                 if (supply.animationFrameId) {
                     cancelAnimationFrame(supply.animationFrameId);
                 }
-                if (supply.timeouts) {
+
+                if (!supply.timeouts) {
+                    supply.timeouts = [];
+                } else {
                     supply.timeouts.forEach(clearTimeout);
                     supply.timeouts = [];
                 }
+
                 if (supply.watchdog) {
                     clearInterval(supply.watchdog);
                 }
@@ -925,21 +1560,17 @@
                         return;
                     }
 
-                    if (supply.timeouts?.length > 0) {
-                        supply.timeouts.forEach(clearTimeout);
-                        supply.timeouts = [];
-                    }
-
                     const elapsedTime = currentTime - lastExecutionTime;
                     if (elapsedTime >= supply.delay) {
                         lastExecutionTime = currentTime;
 
                         for (let i = 0; i < (supply.multiplier ?? 1); i++) {
-                            supply.timeouts.push(setTimeout(() => {
+                            const timeoutId = setTimeout(() => {
                                 if (supply.state && supply.key) {
                                     pressKey(supply.key);
                                 }
-                            }, i * 20));
+                            }, i * 20);
+                            supply.timeouts.push(timeoutId);
                         }
                     }
 
@@ -947,10 +1578,6 @@
                         supply.animationFrameId = requestAnimationFrame(autoclickLoop);
                     }
                 };
-
-                // =============================================
-                // 4. Watchdog (Anti-Crash)
-                // =============================================
 
                 supply.watchdog = setInterval(() => {
                     if (supply.state && performance.now() - lastLoopTime > 200) {
@@ -978,26 +1605,67 @@
                 }
             };
 
-            Object.values(this.settings.settings.clickState.supplies).forEach(supply => {
+            // Modificação para suportar o modo manual/híbrido
+            const handleSupplyClick = (supply) => {
+                if (this.settings.settings.clickMode === "manual") {
+                    // No modo manual, só clica quando a tecla é pressionada
+                    return;
+                }
+
                 if (this.settings.settings.suppliesClickEnabled && supply.state) {
                     startAutoclicking(supply);
                 } else {
                     stopAutoclicking(supply);
                 }
+            };
+
+            // Modificação para as minas
+            const handleMineClick = (mine) => {
+                if (mine.state) {
+                    if (this.settings.settings.clickMode === "manual") {
+                        // No modo manual, só clica quando a tecla é pressionada
+                        stopAutoclicking(mine);
+                    } else {
+                        startAutoclicking(mine);
+                    }
+                } else {
+                    stopAutoclicking(mine);
+                }
+            };
+
+            // Aplica para todos os supplies
+            Object.values(this.settings.settings.clickState.supplies).forEach(supply => {
+                handleSupplyClick(supply);
             });
 
+            // Aplica para minas
             const mine = this.settings.settings.clickState.mine;
-            if (mine.state) {
-                startAutoclicking(mine);
-            } else {
-                stopAutoclicking(mine);
-            }
+            handleMineClick(mine);
 
+            // Aplica para goldbox
             const goldbox = this.settings.settings.clickState.goldbox;
             if (goldbox.state) {
                 startAutoclicking(goldbox);
             } else {
                 stopAutoclicking(goldbox);
+            }
+
+            if (this.settings.settings.clickMode === "manual" || this.settings.settings.clickMode === "hybrid") {
+                document.addEventListener("keydown", (e) => {
+                    if (e.code === this.settings.settings.binds.mines ||
+                        e.code === this.settings.settings.clickState.mine.key) {
+                        const mine = this.settings.settings.clickState.mine;
+                        if (mine.state) {
+                            for (let i = 0; i < (mine.multiplier ?? 1); i++) {
+                                setTimeout(() => {
+                                    if (mine.key) {
+                                        pressKey(mine.key);
+                                    }
+                                }, i * 20);
+                            }
+                        }
+                    }
+                });
             }
         }
     }
