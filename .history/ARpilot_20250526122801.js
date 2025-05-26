@@ -1,3 +1,17 @@
+// ==UserScript==
+// @name        [DEV] ARpilot v3
+// @version     1.3
+// @description Supply Clicker, with Love
+// @author      maserati, aemond
+// @info        Press 0 to toggle
+// @match       https://*.tankionline.com/*
+// @icon        https://i.imgur.com/GCgFcIX.png
+// @run-at      document-start
+// @connect     raw.githubusercontent.com
+// @connect     corsproxy.io
+// @grant       GM_xmlhttpRequest
+// ==/UserScript==
+
 (function () {
     "use strict";
 
