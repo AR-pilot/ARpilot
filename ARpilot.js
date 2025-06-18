@@ -117,7 +117,6 @@
             this.updateTimersInterval = null;
             this.init();
             this.EventListeners();
-            this.antiIDLE();
             this.clickMechanic();
             this.uiContainer = null;
             this.resizeObserver = null;
