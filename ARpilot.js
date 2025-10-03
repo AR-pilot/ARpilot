@@ -5,6 +5,10 @@
         constructor() {
             this.observers = [];
             this.observeInBattle();
+            this.fpsObserver = null;
+            this.currentFPS = 60;
+            this.observeInBattle();
+            this.observeFPS();
         }
 
         get rootElement() {
@@ -39,6 +43,51 @@
 
         notifyObservers(state) {
             this.observers.forEach(callback => callback(state));
+        }
+
+        observeFPS() {
+            const targetNode = document.body;
+            const config = { childList: true, subtree: true };
+
+            const callback = (mutationsList) => {
+                for (let mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        this.updateFPS();
+                    }
+                }
+            };
+
+            this.fpsObserver = new MutationObserver(callback);
+            this.fpsObserver.observe(targetNode, config);
+            this.updateFPS();
+        }
+
+        updateFPS() {
+            try {
+                const fpsElement = document.querySelector('.BattleHudFpsComponentStyle-value');
+                if (fpsElement && fpsElement.textContent) {
+                    const fpsText = fpsElement.textContent.trim();
+                    const fpsMatch = fpsText.match(/(\d+)/);
+
+                    if (fpsMatch) {
+                        this.currentFPS = parseInt(fpsMatch[1]);
+                        console.log(`FPS atualizado: ${this.currentFPS}`); // Debug
+                    }
+                }
+            } catch (error) {
+                console.warn('Erro ao atualizar FPS:', error);
+                this.currentFPS = 60;
+            }
+        }
+
+        getFPS() {
+            return this.currentFPS;
+        }
+
+        destroy() {
+            if (this.fpsObserver) {
+                this.fpsObserver.disconnect();
+            }
         }
     }
 
@@ -115,12 +164,12 @@
             this.uiContainer = null;
             this.autoDisableTimer = null;
             this.updateTimersInterval = null;
+            this.supplyResources = null;
             this.init();
             this.EventListeners();
             this.clickMechanic();
             this.uiContainer = null;
             this.resizeObserver = null;
-
         }
 
         enforceSizeLimits(element) {
@@ -176,7 +225,7 @@
     } #arpilot-ui.hit-limit {outline: 2px dashed #ff3b30 !important;animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;} @keyframes shake { 0%, 100% { transform: translateX(0); }10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }20%, 40%, 60%, 80% { transform: translateX(3px); }}`;
             document.head.appendChild(style);
             const colors = {
-                dark: 'rgba(28, 28, 30, 0.95)',
+                dark: 'rgb(28 28 30 / 60%)',
                 semidark: 'rgba(44, 44, 46, 0.8)',
                 lighttext: '#ffffff',
                 darktext: 'rgba(255, 255, 255, 0.7)',
@@ -261,7 +310,7 @@
             document.addEventListener("mouseup", () => isDragging = false);
 
             const tabs = document.createElement("div");
-            tabs.style = `display: flex;justify-content: flex-start;background: rgba(40, 40, 42, 0.8);padding: 8px 15px;gap: 20px;border-bottom: 1px solid rgba(255, 255, 255, 0.05);`;
+            tabs.style = `display: flex;justify-content: flex-start;background: transparent;padding: 8px 15px;gap: 20px;border-bottom: 1px solid rgba(255, 255, 255, 0.05);`;
 
             const tabNames = ["Supplies", "Actions", "Settings"];
             tabNames.forEach((tabName) => {
@@ -717,7 +766,7 @@
             content.innerHTML = "";
 
             const suppliesContainer = document.createElement("div");
-            suppliesContainer.style = `display: flex;flex-direction: column;gap: 8px;padding: 12px;background: rgba(28, 28, 30, 0.8);border-radius: 10px;backdrop-filter: blur(20px);border: 1px solid rgba(255, 255, 255, 0.1);box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);`;
+            suppliesContainer.style = `display: flex;flex-direction: column;gap: 8px;padding: 12px;`;
 
             const clickState = this.settings.settings.clickState;
 
@@ -1438,135 +1487,19 @@
             }, 1000);
         }
 
-        /*
-        antiIDLE() {
-            // Limpar observers anteriores se existirem
-            if (this.idleObserver) {
-                this.idleObserver.disconnect();
-                this.idleObserver = null;
-            }
-            if (this.garageObserver) {
-                this.garageObserver.disconnect();
-                this.garageObserver = null;
-            }
-
-            this.antiIdlePaused = false;
-
-            const fadeOut = (el) => {
-                if (!el) return;
-                el.style.transition = 'opacity 0.3s ease';
-                el.style.opacity = '0';
-                setTimeout(() => {
-                    if (el) el.style.pointerEvents = 'none';
-                }, 300);
-            };
-
-            const isInactivityDialog = (el) => {
-                if (!el) return false;
-                const text = el.innerText?.toLowerCase() || '';
-                return text.includes('você foi pausado') ||
-                    text.includes('inatividade') ||
-                    text.includes('kick');
-            };
-
-            const hasInteractiveElements = (el) => {
-                return el && el.querySelector('input, button, textarea, select');
-            };
-
-            const handleIdleBypass = () => {
-                if (this.antiIdlePaused || !this.utils.inBattle || !this.settings.settings.antiIDLE) return;
-
-                // Verificar múltiplos tipos de diálogos de inatividade
-                const dialogs = [
-                    document.querySelector(".DialogContainerComponentStyle-container"),
-                    document.querySelector(".ModalStyle-rootHover"),
-                    document.querySelector("#modal-root > div")
-                ];
-
-                dialogs.forEach(dialog => {
-                    if (dialog && isInactivityDialog(dialog) && !hasInteractiveElements(dialog)) {
-                        fadeOut(dialog);
-
-                        // Clicar no botão de confirmação se existir após 500ms
-                        setTimeout(() => {
-                            const confirmBtn = dialog.querySelector('button');
-                            if (confirmBtn) {
-                                confirmBtn.click();
-                            }
-                        }, 500);
-                    }
-                });
-            };
-
-            // Observer principal para diálogos de inatividade
-            this.idleObserver = new MutationObserver((mutations) => {
-                try {
-                    handleIdleBypass();
-                } catch (e) {
-                    console.error("[antiIDLE] Error in observer:", e);
-                }
-            });
-
-            this.idleObserver.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: false,
-                characterData: false
-            });
-
-            // Observer para detectar quando está na garagem
-            this.garageObserver = new MutationObserver(() => {
-                try {
-                    const garage = document.querySelector(".GarageCommonStyle-garageContainer");
-                    const visible = garage &&
-                          getComputedStyle(garage).opacity !== "0" &&
-                          garage.offsetParent !== null;
-
-                    this.antiIdlePaused = visible;
-
-                    // Se sair da garagem, força uma verificação imediata
-                    if (!visible) {
-                        setTimeout(handleIdleBypass, 1000);
-                    }
-                } catch (e) {
-                    console.error("[GarageObserver] Error:", e);
-                }
-            });
-
-            this.garageObserver.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['style', 'class']
-            });
-
-            setTimeout(handleIdleBypass, 3000);
-
-            if (!this.cleanupFunctions) this.cleanupFunctions = [];
-            this.cleanupFunctions.push(() => {
-                if (this.idleObserver) this.idleObserver.disconnect();
-                if (this.garageObserver) this.garageObserver.disconnect();
-            });
-        }*/
-
         clickMechanic() {
-            // Limpeza robusta de recursos anteriores
             this.cleanupClickResources();
-
             if (!this.utils.inBattle) return;
 
-            // Sistema de pressKey ultra-otimizado
             const pressKey = (() => {
                 const keyState = {};
                 return (key) => {
                     const now = performance.now();
                     const keyCode = key.length === 1 ? `Key${key.toUpperCase()}` : key;
 
-                    // Evita flood de eventos
                     if (!keyState[keyCode] || now - keyState[keyCode] > 5) {
                         keyState[keyCode] = now;
 
-                        // Dispara eventos de forma eficiente
                         const eventOpts = {
                             code: keyCode,
                             key: key,
@@ -1574,7 +1507,6 @@
                             cancelable: true
                         };
 
-                        // Usa rAF para sincronizar com frames
                         requestAnimationFrame(() => {
                             document.dispatchEvent(new KeyboardEvent("keydown", eventOpts));
                             setTimeout(() => {
@@ -1585,7 +1517,6 @@
                 };
             })();
 
-            // Gerenciador de recursos otimizado
             if (!this.supplyResources) this.supplyResources = {};
 
             const manageSupply = (supply, type) => {
@@ -1593,7 +1524,6 @@
                     this.supplyResources[type] = {
                         active: false,
                         lastRun: 0,
-                        timeouts: [],
                         rafId: null,
                         multiplierBuffer: []
                     };
@@ -1610,9 +1540,6 @@
                             cancelAnimationFrame(resource.rafId);
                             resource.rafId = null;
                         }
-
-                        resource.timeouts.forEach(clearTimeout);
-                        resource.timeouts = [];
                     }
                 };
 
@@ -1625,18 +1552,19 @@
                     const executePresses = (currentTime) => {
                         if (!resource.active) return;
 
-                        // Verifica se é supply normal (depende do toggle) ou especial (mine/goldbox)
                         const isNormalSupply = Object.keys(this.settings.settings.clickState.supplies).includes(type);
-                        const isEnabled = isNormalSupply ?
-                              (supply.state && this.settings.settings.suppliesClickEnabled) :
-                        supply.state;
+                        const isEnabled = isNormalSupply
+                        ? (this.settings.settings.suppliesClickEnabled && supply.state)
+                        : supply.state;
 
                         if (!isEnabled) {
                             stopAutoclicking();
                             return;
                         }
 
-                        // Processa buffer de multiplicador
+                        const currentFPS = this.utils.getFPS();
+                        const frameTime = 1000 / Math.max(1, currentFPS);
+
                         while (resource.multiplierBuffer.length > 0) {
                             const pressTime = resource.multiplierBuffer[0];
                             if (currentTime >= pressTime) {
@@ -1647,22 +1575,19 @@
                             }
                         }
 
-                        // Agenda novos eventos conforme o delay
                         if (currentTime - resource.lastRun >= supply.delay) {
                             resource.lastRun = currentTime;
 
-                            // Adiciona eventos ao buffer com espaçamento
                             const multiplier = supply.multiplier || 1;
+
                             for (let i = 0; i < multiplier; i++) {
-                                resource.multiplierBuffer.push(currentTime + (i * 3)); // 3ms entre eventos
+                                resource.multiplierBuffer.push(currentTime + (i * frameTime));
                             }
                         }
 
-                        // Continua o loop
                         resource.rafId = requestAnimationFrame(executePresses);
                     };
 
-                    // Inicia o loop
                     resource.rafId = requestAnimationFrame(executePresses);
                 };
 
@@ -1673,7 +1598,6 @@
                 }
             };
 
-            // Gerenciamento de todos os supplies
             Object.entries(this.settings.settings.clickState.supplies).forEach(([type, supply]) => {
                 manageSupply(supply, type);
             });
@@ -1692,12 +1616,10 @@
                         cancelAnimationFrame(resource.rafId);
                         resource.rafId = null;
                     }
-
-                    resource.timeouts.forEach(clearTimeout);
-                    resource.timeouts = [];
                 });
             }
         }
+
     }
 
     const utils = new Utils();
